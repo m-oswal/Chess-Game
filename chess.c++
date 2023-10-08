@@ -2,8 +2,33 @@
 #include <iostream>
 #include <map>
 #include <stdlib.h>
-
 using namespace std;
+struct node{
+    int from[2];
+    int to[2];
+    char piece;
+    struct node *next;
+    struct node *prev;
+};
+void add_nodes(struct node **head,struct node **tail,int from[],int to[],char p){
+    struct node *newnode = (struct node *)malloc(sizeof(struct node));
+    //adding data to node
+    newnode->from[0]=from[0];
+    newnode->from[1]=from[1];
+    newnode->to[0]=to[0];
+    newnode->to[1]=to[1];
+    newnode->piece=p;
+    if(*tail==NULL){
+        *head=newnode;
+        *tail=newnode;
+    }else{
+       newnode->prev=*tail;
+       newnode->next=NULL;
+        (*tail)->next=newnode;
+        *tail=newnode;
+
+    }
+}
 void makeboard(char board[][9]){
     int i,j;
     for(i=0;i<9;i++){
@@ -111,9 +136,9 @@ bool queen_moves(char board[][9],int from[],int to[]){
     int y= to[1]-from[1];
     if((from[0]==to[0] || from[1]==to[1]) || (abs(x)==abs(y))){
         return diagonal_check(board,from,to,x,y);
-}else{
-    return false;
-}
+    }else{
+        return false;
+    }
 }
 bool king_move(int from[],int to[]){
     int x, y;
@@ -197,15 +222,30 @@ void white_piece(char board[][9]){
 
 }
 
-void mapping_coord(map<char,int>& obj){
+void mapping_coord(map<char,int>& obj,map<int,char>& obj2){
     for(int i=0;i<8;i++){
         obj['a'+i]=i;
     }
+    for(int i=0;i<8;i++){
+        obj2[i]='a'+i;
+    }
 }
 
-void make_move(char board[][9],int color,map<char,int>& obj,map<char,int>& cord){
-    int from[2],to[2];
-    char piece;
+void remove_node(struct node **tail){
+    if((*tail==NULL)){
+        return;
+    }else{
+        struct node *temp;
+        temp=*tail;
+        (*tail)=temp->prev;
+        if((*tail)!=NULL){
+        (*tail)->next=NULL;}
+        free(temp);
+    }
+};
+
+
+void make_move(char board[][9],int color,map<char,int>& obj,map<char,int>& cord,char piece,int from[],int to[]){
     char row1,row2;
     cout<<"enter the from coordinates:";
     cin>>row1>>from[1];
@@ -218,7 +258,7 @@ void make_move(char board[][9],int color,map<char,int>& obj,map<char,int>& cord)
         piece = board[from[0]][from[1]];
         if(piece == 'b' || piece == 'B'){
             if (bishop_move(board,from,to)){place(board,from,to,piece,color,obj);
-            return;}
+                return;}
             else{
                 move_made=1;
             }
@@ -226,14 +266,14 @@ void make_move(char board[][9],int color,map<char,int>& obj,map<char,int>& cord)
 
         else if(piece == 'h' || piece == 'H'){
             if (horse_moves(from,to)){ place(board,from,to,piece,color,obj);
-            return;}else{
+                return;}else{
                 move_made=1;
             }
         }
 
         else if(piece == 'r' || piece == 'R'){
             if (rook_moves(board,from,to)){place(board,from,to,piece,color,obj);
-            return;}
+                return;}
             else{
                 move_made=1;
             }
@@ -252,6 +292,13 @@ void make_move(char board[][9],int color,map<char,int>& obj,map<char,int>& cord)
                 move_made=1;
             }
         }
+
+        else if(piece == 'k' || piece == 'K'){
+            if(king_move(from,to)){ place(board,from,to,piece,color,obj);return;}
+            else{
+                move_made=1;
+            }
+        }
         else{
             move_made = 1;
 
@@ -262,7 +309,7 @@ void make_move(char board[][9],int color,map<char,int>& obj,map<char,int>& cord)
 
     if(move_made==1 ){
         cout<<"invalid move"<<endl;
-        return make_move(board,color,obj,cord);
+        return make_move(board,color,obj,cord,piece,from,to);
     }
 }
 
@@ -273,24 +320,64 @@ int colorswitch(int color){
         return 1;
     }
 }
+
+void trav(struct node *head,map<int,char>& obj){
+    struct node *p;
+    p=head;
+    while(p!=NULL){
+        cout<<"from coordinates: "<<obj[p->from[0]]<<p->from[1]<<endl;
+        cout<<"to coordinates: "<<obj[p->to[0]]<<p->to[1]<<endl;
+        printf("piece moved: %c \n\n",p->piece);
+        p=p->next;
+    }
+}
 int main(){
     char board[9][9];
     int from[2],to[2];
     char piece;
-    int color=1,run=0;
+    struct node *head = NULL;
+    struct node *tail = NULL;
+    char black_out[8];
+    char white_out[8];
+    string chance="start";
+    int color=1;
+    bool run=true;
     map<char,int> mapped_piece;
     map<char,int> mapped_cord;
-    mapping_coord(mapped_cord);
+    map<int,char> map_co_alpha;
+    mapping_coord(mapped_cord,map_co_alpha);
     mapping(mapped_piece);
     makeboard(board);
     black_piece(board);
     white_piece(board);
-
-
-    while(run<6){
     printboard(board);
-    make_move(board,color,mapped_piece,mapped_cord);
-    color = colorswitch(color);
-    run++;}
+
+    while(run){
+
+        make_move(board,color,mapped_piece,mapped_cord,piece,from,to);
+
+        add_nodes(&head,&tail,from,to,board[to[0]][to[1]]);
+        printboard(board);
+        while(chance=="start") {
+            cout << "what do you wish perform [undo,next,exit]:";
+            cin >> chance;
+            if (chance == "next") {
+                color = colorswitch(color);
+            } else if (chance == "undo") {
+                place(board, tail->to, tail->from, tail->piece, color, mapped_piece);
+                remove_node(&tail);
+                printboard(board);
+            }
+            else if(chance=="exit"){
+                run=false;
+                break;
+            }
+        }
+        chance = "start";
+    }
+
+    //to print all the moves made
+    trav(head,map_co_alpha);
+
 
 }
